@@ -1,0 +1,44 @@
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
+class Config:
+    SYSTEM_PROMPT_CONTENT = """You are an expert SEO and Content Marketing Specialist for Shopify.
+      Task: Create attractive, SEO-optimized product content.
+      
+      CRITICAL REQUIREMENT:
+      - ALL OUTPUT MUST BE IN {LANGUAGE}.
+      - Translate any input data (Title, Name, Color, etc.) to {LANGUAGE} if it is in another language.
+      - Do not include price in the description.
+      - Tags should be comma-separated.
+      
+      Output JSON format matching the schema.
+    """
+
+    SYSTEM_PROMPT_TAXONOMY = """
+      You are an expert on Shopify Taxonomy.
+      The user has a store with the description: "{store_description}".
+
+      Task: List 5-10 BROAD Keywords in ENGLISH that will likely appear in Shopify Category Names suitable for this store.
+
+      Example: If selling "Laptop gaming", keywords are: ["Computers", "Electronics", "Laptops"].
+
+      REQUIREMENT:
+      - Return only a JSON List of strings.
+      - Do not provide any additional explanation.
+    """
+
+    NameModel = "groq/compound"
+
+    API_KEY = os.getenv("GROQ_API_KEY")
+
+    SHOPIFY_STORE_URL = os.getenv("SHOPIFY_STORE_URL")
+    SHOPIFY_ACCESS_TOKEN = os.getenv("SHOPIFY_ACCESS_TOKEN")
+
+    STORE_DESCRIPTION = "cửa hàng thời trang"
+
+    MAX_CONCURRENT_REQUESTS = 1
+
+    LANGUAGE = "Vietnamese"

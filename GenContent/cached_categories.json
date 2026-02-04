@@ -1,0 +1,107 @@
+{
+  "store_description": "cửa hàng thời trang",
+  "store_description_hash": "8c45ca9a37a3556d35840cd731fc0bcb",
+  "categories": [
+    {
+      "name": "Apparel & Accessories",
+      "id": "gid://shopify/TaxonomyCategory/aa"
+    },
+    {
+      "name": "Clothing Accessories",
+      "id": "gid://shopify/TaxonomyCategory/aa-2"
+    },
+    {
+      "name": "Traditional Clothing Accessories",
+      "id": "gid://shopify/TaxonomyCategory/aa-2-31"
+    },
+    {
+      "name": "Baby & Toddler Clothing Accessories",
+      "id": "gid://shopify/TaxonomyCategory/aa-2-2"
+    },
+    {
+      "name": "Climbing Apparel & Accessories",
+      "id": "gid://shopify/TaxonomyCategory/sg-4-3-3"
+    },
+    {
+      "name": "Cycling Apparel & Accessories",
+      "id": "gid://shopify/TaxonomyCategory/sg-4-4-4"
+    },
+    {
+      "name": "Riding Apparel & Accessories",
+      "id": "gid://shopify/TaxonomyCategory/sg-4-5-5"
+    },
+    {
+      "name": "Clothing",
+      "id": "gid://shopify/TaxonomyCategory/aa-1"
+    },
+    {
+      "name": "Clothing Tops",
+      "id": "gid://shopify/TaxonomyCategory/aa-1-13"
+    },
+    {
+      "name": "Maternity Clothing",
+      "id": "gid://shopify/TaxonomyCategory/aa-1-7"
+    },
+    {
+      "name": "Fashion Face Masks",
+      "id": "gid://shopify/TaxonomyCategory/aa-2-32"
+    },
+    {
+      "name": "Costume Shoes",
+      "id": "gid://shopify/TaxonomyCategory/aa-3-2"
+    },
+    {
+      "name": "Barrel Bags",
+      "id": "gid://shopify/TaxonomyCategory/aa-5-4-2"
+    },
+    {
+      "name": "Beach Bags",
+      "id": "gid://shopify/TaxonomyCategory/aa-5-4-3"
+    },
+    {
+      "name": "Bucket Bags",
+      "id": "gid://shopify/TaxonomyCategory/aa-5-4-4"
+    },
+    {
+      "name": "Clutch Bags",
+      "id": "gid://shopify/TaxonomyCategory/aa-5-4-5"
+    },
+    {
+      "name": "Convertible Bags",
+      "id": "gid://shopify/TaxonomyCategory/aa-5-4-6"
+    },
+    {
+      "name": "Cross Body Bags",
+      "id": "gid://shopify/TaxonomyCategory/aa-5-4-7"
+    },
+    {
+      "name": "Doctor Bags",
+      "id": "gid://shopify/TaxonomyCategory/aa-5-4-8"
+    },
+    {
+      "name": "Half-Moon Bags",
+      "id": "gid://shopify/TaxonomyCategory/aa-5-4-11"
+    },
+    {
+      "name": "Hobo Bags",
+      "id": "gid://shopify/TaxonomyCategory/aa-5-4-12"
+    },
+    {
+      "name": "Saddle Bags",
+      "id": "gid://shopify/TaxonomyCategory/aa-5-4-15"
+    },
+    {
+      "name": "Satchel Bags",
+      "id": "gid://shopify/TaxonomyCategory/aa-5-4-16"
+    },
+    {
+      "name": "School Bags",
+      "id": "gid://shopify/TaxonomyCategory/aa-5-4-17"
+    },
+    {
+      "name": "Shopper Bags",
+      "id": "gid://shopify/TaxonomyCategory/aa-5-4-18"
+    }
+  ],
+  "timestamp": "1770175110.923683"
+}

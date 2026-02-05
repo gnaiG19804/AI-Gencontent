@@ -1,4 +1,8 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi.responses import StreamingResponse
+import asyncio
+import json
+import logging
 from typing import Dict, Any
 
 from services.file_analyzer import analyze_csv
@@ -28,6 +32,44 @@ app.add_middleware(
 
 uploaded_data: Dict[str, Any] = {}
 
+# --- SSE Log Infrastructure ---
+log_queue = asyncio.Queue()
+
+async def send_log(message: str, level: str = "info"):
+    """Helper to push log to queue and print to console"""
+    try:
+        log_entry = json.dumps({
+            "message": message,
+            "level": level,
+            "timestamp": asyncio.get_event_loop().time()
+        })
+        log_queue.put_nowait(log_entry) # Non-blocking put
+    except Exception as e:
+        print(f"Log Error: {e}")
+    
+    # Fallback print to ensure we see it in terminal
+    print(f"[{level.upper()}] {message}") 
+
+@app.get("/logs")
+async def log_stream():
+    """SSE Endpoint for real-time logs"""
+    async def event_generator():
+        while True:
+            try:
+                # Wait for new log with timeout to allow heartbeat
+                data = await asyncio.wait_for(log_queue.get(), timeout=0.5)
+                yield f"data: {data}\n\n"
+            except asyncio.TimeoutError:
+                # Send keep-alive packet very frequently
+                yield f": keep-alive\n\n"
+            except Exception as e:
+                print(f"Stream Error: {e}")
+                # Don't break immediately, retry
+                await asyncio.sleep(1)
+            
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+# ------------------------------
+
 
 @app.post("/upload")
 async def upload_and_analyze(file: UploadFile = File(...)):
@@ -53,7 +95,8 @@ async def upload_and_analyze(file: UploadFile = File(...)):
         "total_rows": result["total_rows"],
         "total_columns": result["total_columns"],
         "columns": result["columns"], 
-        "data_preview": result["products"][:5]  
+        "products": result["products"], # Return FULL data
+        "data_preview": result["products"][:5] # Keep legacy preview just in case mean return full
     }
 
 
@@ -81,7 +124,7 @@ async def generate_content():
     for idx, product in enumerate(products):
         try:
             # Generate content cho từng sản phẩm
-            generated = genContent(
+            generated = await genContent(
                 model=llm_genContent,
                 system_prompt=Config.SYSTEM_PROMPT_CONTENT,
                 data=product
@@ -119,7 +162,7 @@ async def build_product_preview():
     for idx, product in enumerate(products):
         try:
             # Step 1: Generate content
-            generated = genContent(
+            generated = await genContent(
                 model=llm_genContent,
                 system_prompt=Config.SYSTEM_PROMPT_CONTENT,
                 data=product
@@ -163,8 +206,15 @@ async def build_product_preview():
     }
 
 
+from pydantic import BaseModel
+from typing import Optional
+
+class PushRequest(BaseModel):
+    shop_url: Optional[str] = None
+    access_token: Optional[str] = None
+
 @app.post("/push-to-shopify")
-async def push_products_to_shopify():
+async def push_products_to_shopify(request: PushRequest = None):
     """
     Push tất cả sản phẩm lên Shopify store
     Workflow: Upload → Generate → Build → Push
@@ -176,11 +226,33 @@ async def push_products_to_shopify():
     
     products = uploaded_data["products"]
     
+    # Use provided credentials or fallback to Config
+    shop_url = request.shop_url if request and request.shop_url else Config.SHOPIFY_STORE_URL
+    access_token = request.access_token if request and request.access_token else Config.SHOPIFY_ACCESS_TOKEN
+    
+    if not shop_url or not access_token:
+         raise HTTPException(status_code=400, detail="Missing Shopify Credentials. Please provide shop_url and access_token.")
+
+    MAX_CONCURRENT_REQUESTS = Config.MAX_CONCURRENT_REQUESTS
+    semaphore = asyncio.Semaphore(MAX_CONCURRENT_REQUESTS)
+
+    # Pre-fetch categories ONCE
+    try:
+        shopify_categories = await asyncio.to_thread(
+            get_or_refresh_categories, 
+            shop_url=shop_url, 
+            access_token=access_token
+        )
+    except Exception as e:
+        await send_log(f"Failed to fetch categories: {e}", "error")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch categories: {str(e)}")
+
     # Define async worker for a single product
-    async def process_single_product(idx: int, product: Dict[str, Any]) -> Dict[str, Any]:
+    async def process_single_product(idx: int, product: Dict[str, Any], categories: list) -> Dict[str, Any]:
         try:
             # Step 1: Generate content (ASYNC)
-            print(f"[{idx+1}] Generating content...")
+            # Give event loop a breath
+            await asyncio.sleep(0) 
             generated = await genContent(
                 model=llm_genContent,
                 system_prompt=Config.SYSTEM_PROMPT_CONTENT.format(LANGUAGE=Config.LANGUAGE),
@@ -196,24 +268,26 @@ async def push_products_to_shopify():
                 }
             
             # Step 2: Build Shopify product body (BLOCKING -> Thread)
-            print(f"[{idx+1}] Building product body...")
-            shopify_categories = get_or_refresh_categories() # Getting cached data is fast, but better wrap if heavy
+            await asyncio.sleep(0) # Yield
             
             shopify_body = await asyncio.to_thread(
                 build_shopify_product_body,
                 generated_content=generated,
                 original_data=product,
-                shopify_categories=shopify_categories
+                shopify_categories=categories
             )
             
             # Step 3: Push to Shopify (BLOCKING Network -> Thread)
-            print(f"[{idx+1}] Pushing to Shopify...")
+            await asyncio.sleep(0) # Yield
             push_result = await asyncio.to_thread(
                 push_to_shopify,
-                shopify_body
+                product_body=shopify_body,
+                shop_url=shop_url,
+                access_token=access_token
             )
             
             if push_result["status"] == "success":
+                await send_log(f" Product [{idx+1}] Success: {generated.get('title', 'Product')}", "success")
                 return {
                     "row_index": idx,
                     "status": "success",
@@ -224,6 +298,7 @@ async def push_products_to_shopify():
                     "original_data": product
                 }
             else:
+                await send_log(f"❌ Product [{idx+1}] Failed: {push_result.get('message')}", "error")
                 return {
                     "row_index": idx,
                     "status": "error",
@@ -233,6 +308,7 @@ async def push_products_to_shopify():
                 }
                 
         except Exception as e:
+            await send_log(f"❌ Product [{idx+1}] Error: {str(e)}", "error")
             return {
                 "row_index": idx,
                 "status": "error",
@@ -245,14 +321,16 @@ async def push_products_to_shopify():
 
     async def protected_process_single_product(idx, product):
         async with semaphore:
-            return await process_single_product(idx, product)
+            return await process_single_product(idx, product, shopify_categories)
 
     # Run all tasks concurrently with throttling
-    print(f"🚀 Starting parallel processing for {len(products)} products (Max {MAX_CONCURRENT_REQUESTS} parallel)...")
+    await send_log(f" Starting batch processing for {len(products)} products...", "info")
     results = await asyncio.gather(*[protected_process_single_product(i, p) for i, p in enumerate(products)])
     
     success_count = sum(1 for r in results if r["status"] == "success")
     failed_count = len(results) - success_count
+    
+    await send_log(f" Batch completed! Success: {success_count}, Failed: {failed_count}", "done")
     
     return {
         "status": "completed",

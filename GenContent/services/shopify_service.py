@@ -136,7 +136,7 @@ def build_shopify_product_body(
     return product_body
 
 
-def push_to_shopify(product_body: Dict[str, Any]) -> Dict[str, Any]:
+def push_to_shopify(product_body: Dict[str, Any], shop_url: str = None, access_token: str = None) -> Dict[str, Any]:
     """
     Push product lên Shopify store using GraphQL API
     """
@@ -172,7 +172,9 @@ def push_to_shopify(product_body: Dict[str, Any]) -> Dict[str, Any]:
             tags=tags,
             category_id=category_id,
             variants=graphql_variants,
-            status="DRAFT" 
+            status="DRAFT",
+            shop_url=shop_url,
+            access_token=access_token
         )
         
         if result["status"] == "success":

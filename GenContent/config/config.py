@@ -29,16 +29,19 @@ class Config:
       - Return only a JSON List of strings.
       - Do not provide any additional explanation.
     """
-
-    NameModel = "groq/compound"
+    NameModel = "moonshotai/kimi-k2-instruct-0905"
+    NameModel_Content = "deepseek-chat"
 
     API_KEY = os.getenv("GROQ_API_KEY")
+
+    API_KEY_DEEPSEEK = os.getenv("DEEPSEEK_API_KEY")
+    DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL")
 
     SHOPIFY_STORE_URL = os.getenv("SHOPIFY_STORE_URL")
     SHOPIFY_ACCESS_TOKEN = os.getenv("SHOPIFY_ACCESS_TOKEN")
 
     STORE_DESCRIPTION = "cửa hàng thời trang"
 
-    MAX_CONCURRENT_REQUESTS = 1
+    MAX_CONCURRENT_REQUESTS = 3
 
     LANGUAGE = "Vietnamese"

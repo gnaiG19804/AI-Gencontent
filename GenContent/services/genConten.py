@@ -27,8 +27,11 @@ class ContentState(TypedDict):
     metadata: Dict[str, Any]
 
 
-def generate_node(state: ContentState) -> ContentState:
-    print(f"🚀 [Generator] Generating content (Attempt {state['retry_count'] + 1})...")
+import asyncio
+import random
+
+async def generate_node(state: ContentState) -> ContentState:
+    print(f"[Generator] Generating content (Attempt {state['retry_count'] + 1})...")
     
     parser = JsonOutputParser(pydantic_object=ShopifyProduct)
     
@@ -60,29 +63,52 @@ def generate_node(state: ContentState) -> ContentState:
     
     chain = prompt | llm_genContent | parser
     
-    try:
-        result = chain.invoke({
-            "system_prompt": state['system_prompt'],
-            "product_info": product_info,
-            "categories_instruction": state['categories_instruction'],
-            "feedback_context": feedback_context
-        })
-        
-        # Normalize result keys just in case
-        return {
-            **state,
-            "generated_content": result,
-            "metadata": {
-                "model": Config.NameModel,
-                "timestamp": datetime.now().isoformat()
+    max_retries_rate_limit = 5
+    for attempt in range(max_retries_rate_limit):
+        try:
+            # ASYNC Invoke
+            result = await chain.ainvoke({
+                "system_prompt": state['system_prompt'],
+                "product_info": product_info,
+                "categories_instruction": state['categories_instruction'],
+                "feedback_context": feedback_context
+            })
+            
+            # Normalize result keys just in case
+            return {
+                **state,
+                "generated_content": result,
+                "metadata": {
+                    "model": Config.NameModel,
+                    "timestamp": datetime.now().isoformat()
+                }
             }
-        }
-    except Exception as e:
-        print(f"⚠️ Generator Error: {e}")
-        return {**state, "generated_content": None} # Will likely fail review
+        except Exception as e:
+            error_msg = str(e)
+            
+            # Check for Daily Limit (TPD) - Non-recoverable by waiting
+            if "TPD" in error_msg or "Daily" in error_msg or "tokens per day" in error_msg:
+                print(f"❌ [Quota Exceeded] Daily Token Limit reached (TPD). Stopping retries.")
+                print(f"   Error details: {error_msg}")
+                return {**state, "generated_content": None, "final_status": "failed", "feedback": "Daily Quota Exceeded"}
+
+            # Check for Rate Limit (RPM/TPM) - Recoverable
+            if "429" in error_msg or "Rate limit reached" in error_msg:
+                wait_time = (2 ** attempt) * 2 + random.uniform(0, 1) 
+                print(f"⚠️ [Rate Limit] Groq API 429. Waiting {wait_time:.2f}s before retry {attempt+1}/{max_retries_rate_limit}...")
+                print(f"   Details: {error_msg[:100]}...") # Print first 100 chars to see reason
+                await asyncio.sleep(wait_time)
+            
+            # Other errors
+            else:
+                print(f"⚠️ Generator Error: {e}")
+                return {**state, "generated_content": None} 
+
+    print("❌ Failed after max rate limit retries.")
+    return {**state, "generated_content": None}
 
 
-def review_node(state: ContentState) -> ContentState:
+async def review_node(state: ContentState) -> ContentState:
     print(f"🧐 [Reviewer] Evaluating content...")
     
     content = state.get("generated_content")
@@ -114,7 +140,8 @@ def review_node(state: ContentState) -> ContentState:
                         """
     
     try:
-        response = llm_reviewer.invoke(review_prompt)
+        # ASYNC Invoke
+        response = await llm_reviewer.ainvoke(review_prompt)
         # Parse JSON from response
         # Simple parsing logic (assuming LLM behaves)
         response_text = response.content.strip()
@@ -147,13 +174,14 @@ def should_continue(state: ContentState) -> Literal["generate", "end"]:
     return "generate"
 
 
-async def genContent(model, system_prompt: str, data: Dict[str, Any]) -> Dict[str, Any]:
+async def genContent(model, system_prompt: str, data: Dict[str, Any], categories_context: List[dict] = None) -> Dict[str, Any]:
     """
     Generate content using LangGraph (Generate -> Review -> Retry) [ASYNC]
     """
     
-    # 1. Prepare Categories Context (Blocking I/O but fast/cached, keep sync for now or wrap)
-    shopify_categories = get_or_refresh_categories()
+    # 1. Prepare Categories Context
+    # If provided externally (optimized), use it. Otherwise fetch (blocking/slow).
+    shopify_categories = categories_context if categories_context else get_or_refresh_categories()
     if shopify_categories:
         types_list = "\n".join([f"  - {cat['name']}" for cat in shopify_categories])
         categories_instruction = f"""

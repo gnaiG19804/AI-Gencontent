@@ -219,7 +219,7 @@ def build_niche_taxonomy(keywords):
         return []
 
 
-def get_or_refresh_categories() -> List[str]:
+def get_or_refresh_categories(shop_url: str = None, access_token: str = None) -> List[dict]:
     """
     Main function: Load từ cache hoặc refresh nếu cần
     """

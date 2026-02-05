@@ -13,6 +13,15 @@ def handle_graphql_response(result: Dict[str, Any], operation_name: str) -> Dict
     Helper to handle GraphQL response errors
     """
     if "errors" in result:
+        # Check for permission errors globally
+        for error in result["errors"]:
+            if error.get("extensions", {}).get("code") == "ACCESS_DENIED":
+                required = error.get("extensions", {}).get("requiredAccess", "unknown scope")
+                print(f" [ERROR] {operation_name} FAILED: Missing permissions.")
+                print(f"         Required scope: {required}")
+                print(f"         Please update your Admin API Scopes in Shopify App settings.")
+                return {"status": "error", "errors": result["errors"], "message": "Missing permissions"}
+                
         print(f" {operation_name} GraphQL errors: {json.dumps(result['errors'], indent=2)}")
         return {"status": "error", "errors": result["errors"]}
     
@@ -27,27 +36,35 @@ def handle_graphql_response(result: Dict[str, Any], operation_name: str) -> Dict
     return {"status": "success", "data": operation_result}
 
 
-def setup_inventory_for_variant(inventory_item_id: str, quantity: int) -> Dict[str, Any]:
+def setup_inventory_for_variant(inventory_item_id: str, quantity: int, shop_url: str = None, access_token: str = None) -> Dict[str, Any]:
     """
-    Orchestrate full inventory setup: Get Location -> Activate -> Set Quantity
+    Orchestrate full inventory setup: Get Location -> Activate Tracking -> Stock at Location -> Set Quantity
     """
     print(f" Setting up inventory: {quantity} units")
     
     # Step 1: Get primary location
-    location_id = get_primary_location()
+    location_id = get_primary_location(shop_url=shop_url, access_token=access_token)
     if not location_id:
         print(f" Could not get location for inventory")
         return {"status": "error", "message": "Missing location"}
 
-    # Step 2: Activate tracking
-    activate_res = activate_inventory_tracking(inventory_item_id)
+    # Step 2: Activate tracking (global)
+    activate_res = activate_inventory_tracking(inventory_item_id, shop_url=shop_url, access_token=access_token)
     if activate_res["status"] != "success":
         return activate_res
     
     print(f" Inventory tracking activated")
 
-    # Step 3: Set quantity
-    qty_res = set_inventory_quantities(inventory_item_id, location_id, quantity)
+    # Step 3: Activate at location (Stock the item at this specific location)
+    stock_res = activate_inventory_at_location(inventory_item_id, location_id, shop_url=shop_url, access_token=access_token)
+    if stock_res["status"] != "success":
+        # Ignore if already stocked? userErrors usually explain.
+        pass
+    else:
+        print(f" Inventory stocked at location {location_id}")
+
+    # Step 4: Set quantity
+    qty_res = set_inventory_quantities(inventory_item_id, location_id, quantity, shop_url=shop_url, access_token=access_token)
     if qty_res["status"] != "success":
         return qty_res
         
@@ -55,12 +72,39 @@ def setup_inventory_for_variant(inventory_item_id: str, quantity: int) -> Dict[s
     return {"status": "success"}
 
 
+def activate_inventory_at_location(inventory_item_id: str, location_id: str, shop_url: str = None, access_token: str = None) -> Dict[str, Any]:
+    """
+    Connect an inventory item to a location (Required before setting quantity)
+    """
+    mutation = """
+      mutation inventoryActivate($inventoryItemId: ID!, $locationId: ID!) {
+        inventoryActivate(inventoryItemId: $inventoryItemId, locationId: $locationId) {
+          inventoryLevel {
+            id
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    """
+    variables = {
+        "inventoryItemId": inventory_item_id,
+        "locationId": location_id
+    }
+    result = execute_graphql_query(mutation, variables, shop_url=shop_url, access_token=access_token)
+    return handle_graphql_response(result, "inventoryActivate")
+
+
 def update_product_variant_bulk(
     product_gid: str,
     variant_gid: str,
     price: Optional[str] = None,
     sku: Optional[str] = None,
-    inventory_management: bool = True
+    inventory_management: bool = True,
+    shop_url: str = None,
+    access_token: str = None
 ) -> Dict[str, Any]:
     """
     Update variant with price, SKU using bulk update API (2024-10)
@@ -94,7 +138,7 @@ def update_product_variant_bulk(
         "variants": [variant_input]
     }
     
-    result = execute_graphql_query(mutation, variables)
+    result = execute_graphql_query(mutation, variables, shop_url=shop_url, access_token=access_token)
     processed = handle_graphql_response(result, "productVariantsBulkUpdate")
     
     if processed["status"] == "error":
@@ -116,7 +160,7 @@ def update_product_variant_bulk(
     }
 
 
-def activate_inventory_tracking(inventory_item_id: str, location_id: str = None) -> Dict[str, Any]:
+def activate_inventory_tracking(inventory_item_id: str, shop_url: str = None, access_token: str = None) -> Dict[str, Any]:
     """
     Activate inventory tracking (set tracked=true)
     """
@@ -140,7 +184,7 @@ def activate_inventory_tracking(inventory_item_id: str, location_id: str = None)
         "input": {"tracked": True}
     }
     
-    result = execute_graphql_query(mutation, variables)
+    result = execute_graphql_query(mutation, variables, shop_url=shop_url, access_token=access_token)
     processed = handle_graphql_response(result, "inventoryItemUpdate")
     
     if processed["status"] == "success":
@@ -148,7 +192,7 @@ def activate_inventory_tracking(inventory_item_id: str, location_id: str = None)
     return processed
 
 
-def set_inventory_quantities(inventory_item_id: str, location_id: str, quantity: int) -> Dict[str, Any]:
+def set_inventory_quantities(inventory_item_id: str, location_id: str, quantity: int, shop_url: str = None, access_token: str = None) -> Dict[str, Any]:
     """
     Set inventory quantity at a location
     """
@@ -181,11 +225,11 @@ def set_inventory_quantities(inventory_item_id: str, location_id: str, quantity:
         }
     }
     
-    result = execute_graphql_query(mutation, variables)
+    result = execute_graphql_query(mutation, variables, shop_url=shop_url, access_token=access_token)
     return handle_graphql_response(result, "inventorySetQuantities")
 
 
-def get_primary_location() -> Optional[str]:
+def get_primary_location(shop_url: str = None, access_token: str = None) -> Optional[str]:
     """
     Get primary location GID
     """
@@ -201,9 +245,18 @@ def get_primary_location() -> Optional[str]:
       }
     }
     """
-    result = execute_graphql_query(query)
+    result = execute_graphql_query(query, shop_url=shop_url, access_token=access_token)
     
-    if "errors" in result or "data" not in result:
+    if "errors" in result:
+        # Check for permission errors
+        for error in result["errors"]:
+            if error.get("extensions", {}).get("code") == "ACCESS_DENIED":
+                print(f" [ERROR] Missing permissions to read locations. Please add 'read_locations' scope to your access token.")
+                return None
+        print(f" [DEBUG] get_primary_location failed. Result: {json.dumps(result, indent=2)}")
+        return None
+    
+    if "data" not in result:
         return None
     
     locations = result.get("data", {}).get("locations", {}).get("edges", [])
@@ -215,14 +268,15 @@ def get_primary_location() -> Optional[str]:
     return None
 
 
-def execute_graphql_query(query: str, variables: Dict[str, Any] = None) -> Dict[str, Any]:
+def execute_graphql_query(query: str, variables: Dict[str, Any] = None, shop_url: str = None, access_token: str = None) -> Dict[str, Any]:
     """
     Execute GraphQL query/mutation
     """
-    shop_url = Config.SHOPIFY_STORE_URL
-    access_token = Config.SHOPIFY_ACCESS_TOKEN
+    shop_url = shop_url or Config.SHOPIFY_STORE_URL
+    access_token = access_token or Config.SHOPIFY_ACCESS_TOKEN
     
     if not shop_url or not access_token:
+        print(" [ERROR] Missing Shopify credentials in Config!")
         return {"errors": [{"message": "Missing config"}]}
     
     endpoint = f"https://{shop_url}/admin/api/2024-10/graphql.json"
@@ -247,7 +301,9 @@ def create_product_graphql(
     tags: List[str],
     category_id: Optional[str] = None,
     variants: List[Dict[str, Any]] = None,
-    status: str = "ACTIVE"
+    status: str = "ACTIVE",
+    shop_url: str = None,
+    access_token: str = None
 ) -> Dict[str, Any]:
     """
     Create product and handle variants/inventory
@@ -282,7 +338,7 @@ def create_product_graphql(
         product_input["category"] = category_id
     
     # 1. Create Product
-    result = execute_graphql_query(mutation, {"input": product_input})
+    result = execute_graphql_query(mutation, {"input": product_input}, shop_url=shop_url, access_token=access_token)
     processed = handle_graphql_response(result, "productCreate")
     
     if processed["status"] == "error":
@@ -317,7 +373,9 @@ def create_product_graphql(
             variant_gid=variant_gid,
             price=v_data.get("price"),
             sku=v_data.get("sku"),
-            inventory_management=True
+            inventory_management=True,
+            shop_url=shop_url,
+            access_token=access_token
         )
         
         if update_res["status"] == "success":
@@ -328,7 +386,7 @@ def create_product_graphql(
             quantity = v_data.get("quantity")
             
             if inv_item_id and quantity is not None:
-                inv_res = setup_inventory_for_variant(inv_item_id, int(quantity))
+                inv_res = setup_inventory_for_variant(inv_item_id, int(quantity), shop_url=shop_url, access_token=access_token)
                 if inv_res["status"] != "success":
                     print(f" Inventory setup failed: {inv_res}")
                     # Don't fail the whole product creation, just warn

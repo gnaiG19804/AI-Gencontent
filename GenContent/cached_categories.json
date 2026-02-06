@@ -1,107 +1,107 @@
 {
-  "store_description": "cửa hàng thời trang",
-  "store_description_hash": "8c45ca9a37a3556d35840cd731fc0bcb",
+  "store_description": "cửa hàng bán các sản phẩm liên quan đến rượu",
+  "store_description_hash": "cbb3c2e471a8beb1667739f6c9153be8",
   "categories": [
     {
-      "name": "Apparel & Accessories",
-      "id": "gid://shopify/TaxonomyCategory/aa"
+      "name": "Low Alcohol & Alcohol-Free Beverages",
+      "id": "gid://shopify/TaxonomyCategory/fb-1-8"
     },
     {
-      "name": "Clothing Accessories",
-      "id": "gid://shopify/TaxonomyCategory/aa-2"
+      "name": "Low Alcohol & Alcohol-Free Beer",
+      "id": "gid://shopify/TaxonomyCategory/fb-1-8-1"
     },
     {
-      "name": "Traditional Clothing Accessories",
-      "id": "gid://shopify/TaxonomyCategory/aa-2-31"
+      "name": "Low Alcohol & Alcohol-Free Liquors & Spirits",
+      "id": "gid://shopify/TaxonomyCategory/fb-1-8-5"
     },
     {
-      "name": "Baby & Toddler Clothing Accessories",
-      "id": "gid://shopify/TaxonomyCategory/aa-2-2"
+      "name": "Low Alcohol & Alcohol-Free Wine",
+      "id": "gid://shopify/TaxonomyCategory/fb-1-8-6"
     },
     {
-      "name": "Climbing Apparel & Accessories",
-      "id": "gid://shopify/TaxonomyCategory/sg-4-3-3"
+      "name": "Alcohol Ink",
+      "id": "gid://shopify/TaxonomyCategory/ae-2-1-2-3-3-2"
     },
     {
-      "name": "Cycling Apparel & Accessories",
-      "id": "gid://shopify/TaxonomyCategory/sg-4-4-4"
+      "name": "Beer Brewing Kits",
+      "id": "gid://shopify/TaxonomyCategory/ae-2-3-3-1"
     },
     {
-      "name": "Riding Apparel & Accessories",
-      "id": "gid://shopify/TaxonomyCategory/sg-4-5-5"
+      "name": "Wine Making Kits",
+      "id": "gid://shopify/TaxonomyCategory/ae-2-3-3-3"
     },
     {
-      "name": "Clothing",
-      "id": "gid://shopify/TaxonomyCategory/aa-1"
+      "name": "Wine Making",
+      "id": "gid://shopify/TaxonomyCategory/ae-2-3-4"
     },
     {
-      "name": "Clothing Tops",
-      "id": "gid://shopify/TaxonomyCategory/aa-1-13"
+      "name": "Beverages",
+      "id": "gid://shopify/TaxonomyCategory/fb-1"
     },
     {
-      "name": "Maternity Clothing",
-      "id": "gid://shopify/TaxonomyCategory/aa-1-7"
+      "name": "Alcoholic Beverages",
+      "id": "gid://shopify/TaxonomyCategory/fb-1-1"
     },
     {
-      "name": "Fashion Face Masks",
-      "id": "gid://shopify/TaxonomyCategory/aa-2-32"
+      "name": "Beer",
+      "id": "gid://shopify/TaxonomyCategory/fb-1-1-1"
     },
     {
-      "name": "Costume Shoes",
-      "id": "gid://shopify/TaxonomyCategory/aa-3-2"
+      "name": "Flavored Alcoholic Beverages",
+      "id": "gid://shopify/TaxonomyCategory/fb-1-1-3"
     },
     {
-      "name": "Barrel Bags",
-      "id": "gid://shopify/TaxonomyCategory/aa-5-4-2"
+      "name": "Liquor & Spirits",
+      "id": "gid://shopify/TaxonomyCategory/fb-1-1-5"
     },
     {
-      "name": "Beach Bags",
-      "id": "gid://shopify/TaxonomyCategory/aa-5-4-3"
+      "name": "Wine",
+      "id": "gid://shopify/TaxonomyCategory/fb-1-1-7"
     },
     {
-      "name": "Bucket Bags",
-      "id": "gid://shopify/TaxonomyCategory/aa-5-4-4"
+      "name": "Cooking Wine",
+      "id": "gid://shopify/TaxonomyCategory/fb-2-5-14"
     },
     {
-      "name": "Clutch Bags",
-      "id": "gid://shopify/TaxonomyCategory/aa-5-4-5"
+      "name": "Wine Racks",
+      "id": "gid://shopify/TaxonomyCategory/fr-4-16"
     },
     {
-      "name": "Convertible Bags",
-      "id": "gid://shopify/TaxonomyCategory/aa-5-4-6"
+      "name": "Beer Tap Handles",
+      "id": "gid://shopify/TaxonomyCategory/hg-11-1-2-1"
     },
     {
-      "name": "Cross Body Bags",
-      "id": "gid://shopify/TaxonomyCategory/aa-5-4-7"
+      "name": "Beer Tap Towers",
+      "id": "gid://shopify/TaxonomyCategory/hg-11-1-2-2"
     },
     {
-      "name": "Doctor Bags",
-      "id": "gid://shopify/TaxonomyCategory/aa-5-4-8"
+      "name": "Wine Aerators",
+      "id": "gid://shopify/TaxonomyCategory/hg-11-1-16"
     },
     {
-      "name": "Half-Moon Bags",
-      "id": "gid://shopify/TaxonomyCategory/aa-5-4-11"
+      "name": "Wine Bottle Holders",
+      "id": "gid://shopify/TaxonomyCategory/hg-11-1-17"
     },
     {
-      "name": "Hobo Bags",
-      "id": "gid://shopify/TaxonomyCategory/aa-5-4-12"
+      "name": "Wine Carrier Bags",
+      "id": "gid://shopify/TaxonomyCategory/hg-11-3-12"
     },
     {
-      "name": "Saddle Bags",
-      "id": "gid://shopify/TaxonomyCategory/aa-5-4-15"
+      "name": "Wine Fridge Accessories",
+      "id": "gid://shopify/TaxonomyCategory/hg-11-6-31"
     },
     {
-      "name": "Satchel Bags",
-      "id": "gid://shopify/TaxonomyCategory/aa-5-4-16"
+      "name": "Wine Fridge Filters",
+      "id": "gid://shopify/TaxonomyCategory/hg-11-6-31-2"
     },
     {
-      "name": "School Bags",
-      "id": "gid://shopify/TaxonomyCategory/aa-5-4-17"
+      "name": "Wine Fridge Shelves",
+      "id": "gid://shopify/TaxonomyCategory/hg-11-6-31-3"
     },
     {
-      "name": "Shopper Bags",
-      "id": "gid://shopify/TaxonomyCategory/aa-5-4-18"
+      "name": "Wine Fridges",
+      "id": "gid://shopify/TaxonomyCategory/hg-11-7-51"
     }
   ],
-  "timestamp": "1770175110.923683"
+  "timestamp": "1770254715.3564951"
 }

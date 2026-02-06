@@ -40,8 +40,13 @@ class Config:
     SHOPIFY_STORE_URL = os.getenv("SHOPIFY_STORE_URL")
     SHOPIFY_ACCESS_TOKEN = os.getenv("SHOPIFY_ACCESS_TOKEN")
 
-    STORE_DESCRIPTION = "cửa hàng thời trang"
+    STORE_DESCRIPTION = "cửa hàng bán các sản phẩm liên quan đến rượu"
+
+    SERP_API_KEY = os.getenv("SERP_API_KEY")
 
     MAX_CONCURRENT_REQUESTS = 3
 
     LANGUAGE = "Vietnamese"
+
+    FLOOR_MARGIN = 1.3  # Lợi nhuận tối thiểu 30%
+

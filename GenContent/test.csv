@@ -1,4 +1,3 @@
-Name,Price,Color,Inventory
-Áo hoodie,250000,Black,15
-Áo polo,150000,White,25
-Quan dui nam ngan,120000,Gray,18
+Product_name,Vintage,Luc,supplier,cost_per_item
+Chateau Red Reserve,2018,13.5,France Wine Co,50.00
+Golden Oak Cabernet,2016,14.2,Napa Valley Supply,30.00

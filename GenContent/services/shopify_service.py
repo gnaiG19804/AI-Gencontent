@@ -13,7 +13,8 @@ load_dotenv()
 def build_shopify_product_body(
     generated_content: Dict[str, Any],
     original_data: Dict[str, Any],
-    shopify_categories: Optional[List[Dict[str, str]]] = None
+    shopify_categories: Optional[List[Dict[str, str]]] = None,
+    recommended_price: Optional[float] = None
 ) -> Dict[str, Any]:
     """
     Build Shopify product body chuẩn từ generated content và original CSV data
@@ -83,8 +84,13 @@ def build_shopify_product_body(
         "inventory_policy": "deny"
     }
     
-    if price is not None:
-        variant["price"] = str(price)
+    # Use recommended_price if provided, otherwise use CSV price
+    final_price = recommended_price if recommended_price is not None else price
+    
+    if final_price is not None:
+        variant["price"] = str(final_price)
+        if recommended_price is not None:
+            print(f"💰 Using calculated price: ${recommended_price:.2f}")
     
     if sku:
         variant["sku"] = sku

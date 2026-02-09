@@ -20,6 +20,7 @@ class ContentState(TypedDict):
     input_data: Dict[str, Any]
     system_prompt: str
     categories_instruction: str
+    competitor_context: str # New: Competitor descriptions context
     generated_content: Optional[Dict[str, Any]]
     feedback: Optional[str]
     retry_count: int
@@ -50,14 +51,26 @@ async def generate_node(state: ContentState) -> ContentState:
         Based on the following product information:
         {product_info}
 
+        {competitor_context_instruction}
+
         {feedback_context}
 
         {format_instructions}
         """
     
+    competitor_context_instruction = ""
+    if state.get('competitor_context'):
+        competitor_context_instruction = f"""
+        REFERENCE DESCRIPTIONS FROM SIMILAR PRODUCTS (RAG):
+        {state['competitor_context']}
+
+        => INSTRUCTION: Use the styles, formats, or keywords from the references above as inspiration to write a SUPERIOR description. 
+        => YOU MUST NOT COPY verbatim. Create unique, high-quality, and SEO-optimized content.
+        """
+
     prompt = PromptTemplate(
         template=template,
-        input_variables=["system_prompt", "product_info", "categories_instruction", "feedback_context"],
+        input_variables=["system_prompt", "product_info", "categories_instruction", "competitor_context_instruction", "feedback_context"],
         partial_variables={"format_instructions": parser.get_format_instructions()}
     )
     
@@ -71,6 +84,7 @@ async def generate_node(state: ContentState) -> ContentState:
                 "system_prompt": state['system_prompt'],
                 "product_info": product_info,
                 "categories_instruction": state['categories_instruction'],
+                "competitor_context_instruction": competitor_context_instruction,
                 "feedback_context": feedback_context
             })
             
@@ -174,7 +188,7 @@ def should_continue(state: ContentState) -> Literal["generate", "end"]:
     return "generate"
 
 
-async def genContent(model, system_prompt: str, data: Dict[str, Any], categories_context: List[dict] = None) -> Dict[str, Any]:
+async def genContent(model, system_prompt: str, data: Dict[str, Any], categories_context: List[dict] = None, competitor_context: str = "") -> Dict[str, Any]:
     """
     Generate content using LangGraph (Generate -> Review -> Retry) [ASYNC]
     """
@@ -199,6 +213,7 @@ async def genContent(model, system_prompt: str, data: Dict[str, Any], categories
         "input_data": data,
         "system_prompt": system_prompt,
         "categories_instruction": categories_instruction,
+        "competitor_context": competitor_context, # Pass context here
         "generated_content": None,
         "feedback": None,
         "retry_count": 0,

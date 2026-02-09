@@ -7,95 +7,79 @@ import statistics
 from fastapi import APIRouter, HTTPException
 
 from utils.getPrice import google_shopping_prices, find_most_common_price, calculate_price
-from core.state import uploaded_data
 from core.logging import send_log
+from config.config import Config
+from models.model import BatchPricingRequest # Added model
 
 router = APIRouter(tags=["Pricing"])
 
 
-@router.get("/calculate-price")
-async def calculate_price_preview():
+
+@router.post("/calculate-prices")
+async def calculate_prices_batch(req: BatchPricingRequest):
     """
-    Tính giá cho tất cả sản phẩm từ CSV đã upload
+    Node n8n: Tính giá hàng loạt cho sản phẩm (nhận mảng từ n8n).
     """
-    if "products" not in uploaded_data:
-        raise HTTPException(status_code=400, detail="Chưa upload file CSV. Vui lòng upload trước.")
-    
-    products = uploaded_data["products"]
     results = []
-    
-    for idx, product in enumerate(products):
-        try:
-            # Check if cost_per_item exists
-            if "cost_per_item" not in product or not product.get("cost_per_item"):
-                results.append({
-                    "row_index": idx,
-                    "status": "skipped",
-                    "message": "Thiếu cost_per_item",
-                    "product_name": product.get("Product_name", "Unknown")
-                })
-                continue
-            
-            product_name = product.get("Product_name", "")
-            vintage = product.get("Vintage", "")
-            cost_per_item = float(product["cost_per_item"])
-            
-            await send_log(f"🔍 [{idx+1}] Đang tìm giá cho: {product_name}", "info")
-            
-            # Step 1: Find competitor prices
-            prices = await asyncio.to_thread(
-                google_shopping_prices,
-                product_name,
-                vintage
-            )
-            
-            if not prices or len(prices) == 0:
-                results.append({
-                    "row_index": idx,
+    sem = asyncio.Semaphore(Config.MAX_CONCURRENT_REQUESTS) # Concurrent Control
+
+    async def process_price(idx: int, item):
+         async with sem:
+            try:
+                product_name = item.product_name
+                vintage = item.vintage
+                cost_per_item = item.cost_per_item
+                
+                await send_log(f"💰 [Batch] ({idx+1}/{len(req.items)}) Đang tính giá cho: {product_name}", "info")
+                
+                # Step 1: Find Top 10 raw competitor prices
+                prices = await asyncio.to_thread(
+                    google_shopping_prices,
+                    product_name,
+                    vintage,
+                    raw=True
+                )
+                
+                floor_margin = Config.FLOOR_MARGIN
+                floor_price = round(cost_per_item * floor_margin, 2)
+                
+                final_price = None
+                strategy = "floor"
+                
+                if prices:
+                    valid_competitors = sorted([p for p in prices if p > cost_per_item])
+                    for p in valid_competitors:
+                        suggested = round(p * 0.99, 2)
+                        if suggested >= floor_price:
+                            final_price = suggested
+                            strategy = "competitive_step_up"
+                            break
+                
+                if final_price is None:
+                    final_price = floor_price
+                    strategy = "floor"
+
+                return {
+                    "status": "success",
+                    "product_name": product_name,
+                    "vintage": vintage,
+                    "recommended_price": final_price,
+                    "strategy": strategy,
+                }
+                
+            except Exception as e:
+                return {
                     "status": "error",
-                    "message": "Không tìm thấy giá đối thủ",
-                    "product_name": product_name
-                })
-                continue
+                    "message": str(e),
+                    "product_name": item.product_name,
+                }
+
+    # Parallel Execution
+    tasks = [process_price(i, item) for i, item in enumerate(req.items)]
+    results = await asyncio.gather(*tasks)
             
-            # Step 2: Calculate mode and median
-            mode_price = find_most_common_price(prices)
-            median_price = statistics.median(prices)
-            
-            # Step 3: Calculate recommended price
-            pricing = calculate_price(mode_price, cost_per_item)
-            
-            await send_log(
-                f"💰 [{idx+1}] {product_name}: ${pricing['recommended_price']:.2f} ({pricing['strategy']})",
-                "success"
-            )
-            
-            results.append({
-                "row_index": idx,
-                "status": "success",
-                "product_name": f"{product_name} {vintage}".strip(),
-                "competitor_analysis": {
-                    "mode_price": mode_price,
-                    "median_price": round(median_price, 2),
-                    "price_count": len(prices)
-                },
-                "pricing_recommendation": pricing
-            })
-            
-        except Exception as e:
-            await send_log(f"❌ [{idx+1}] Lỗi: {str(e)}", "error")
-            results.append({
-                "row_index": idx,
-                "status": "error",
-                "message": str(e),
-                "product_name": product.get("Product_name", "Unknown")
-            })
-    
-    success_count = sum(1 for r in results if r["status"] == "success")
-    
     return {
-        "status": "completed",
-        "total_products": len(products),
-        "success_count": success_count,
+        "status": "success",
+        "total": len(req.items),
         "results": results
     }

@@ -5,12 +5,12 @@ load_dotenv()
 
 
 class Config:
-    SYSTEM_PROMPT_CONTENT = """You are an expert SEO and Content Marketing Specialist for Shopify.
-      Task: Create attractive, SEO-optimized product content.
+    SYSTEM_PROMPT_CONTENT = """You are a professional SEO copywriter specializing in e-commerce product descriptions.
+      Task: Create compelling, SEO-optimized product content.
       
       CRITICAL REQUIREMENT:
       - ALL OUTPUT MUST BE IN {LANGUAGE}.
-      - Translate any input data (Title, Name, Color, etc.) to {LANGUAGE} if it is in another language.
+      - Translate any input data to {LANGUAGE}.
       - Do not include price in the description.
       - Tags should be comma-separated.
       
@@ -30,6 +30,7 @@ class Config:
       - Do not provide any additional explanation.
     """
     NameModel = "moonshotai/kimi-k2-instruct-0905"
+    # NameModel = "openai/gpt-oss-120b"
     NameModel_Content = "deepseek-chat"
 
     API_KEY = os.getenv("GROQ_API_KEY")
@@ -48,5 +49,5 @@ class Config:
 
     LANGUAGE = "Vietnamese"
 
-    FLOOR_MARGIN = 1.3  # Lợi nhuận tối thiểu 30%
+    FLOOR_MARGIN = 1.3  
 

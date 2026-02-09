@@ -102,12 +102,17 @@ def update_product_variant_bulk(
     variant_gid: str,
     price: Optional[str] = None,
     sku: Optional[str] = None,
+    cost: Optional[float] = None,
+    weight: Optional[float] = None,
+    weight_unit: str = "KILOGRAMS",
+    taxable: bool = True,
+    requires_shipping: bool = True,
     inventory_management: bool = True,
     shop_url: str = None,
     access_token: str = None
 ) -> Dict[str, Any]:
     """
-    Update variant with price, SKU using bulk update API (2024-10)
+    Update variant with price, SKU, cost, weight etc. using bulk update API (2024-10)
     """
     mutation = """
               mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
@@ -129,14 +134,31 @@ def update_product_variant_bulk(
               }
               """
     
-    variant_input = {"id": variant_gid}
+    variant_input = {
+        "id": variant_gid,
+        "taxable": taxable,
+        "inventoryItem": {
+            "requiresShipping": requires_shipping
+        }
+    }
+    
     if price: variant_input["price"] = price
     if sku: variant_input["sku"] = sku
+    if weight is not None:
+        variant_input["inventoryItem"]["measurement"] = {
+            "weight": {
+                "value": weight,
+                "unit": weight_unit
+            }
+        }
     
     variables = {
         "productId": product_gid,
         "variants": [variant_input]
     }
+    
+    print(f" DEBUG: Sending productVariantsBulkUpdate with weight={weight}, cost={cost}")
+    # print(f" DEBUG: Variables JSON: {json.dumps(variables, indent=2)}")
     
     result = execute_graphql_query(mutation, variables, shop_url=shop_url, access_token=access_token)
     processed = handle_graphql_response(result, "productVariantsBulkUpdate")
@@ -146,18 +168,74 @@ def update_product_variant_bulk(
     
     variant_data = processed["data"]
     
-    # usage: inventory_item_id for next steps
+    # Update Cost (Inventory Item)
     inventory_item_id = None
-    if inventory_management:
-        variants = variant_data.get("productVariants", [])
-        if variants:
-            inventory_item_id = variants[0].get("inventoryItem", {}).get("id")
+    variants = variant_data.get("productVariants", [])
+    if variants:
+        inventory_item_id = variants[0].get("inventoryItem", {}).get("id")
+        
+    if inventory_item_id and cost is not None:
+        print(f" Setting cost for variant: {cost}")
+        cost_mutation = """
+        mutation inventoryItemUpdate($id: ID!, $input: InventoryItemInput!) {
+          inventoryItemUpdate(id: $id, input: $input) {
+            inventoryItem { id unitCost { amount } }
+            userErrors { field message }
+          }
+        }
+        """
+        execute_graphql_query(cost_mutation, {"id": inventory_item_id, "input": {"unitCost": {"amount": str(cost)}}}, shop_url=shop_url, access_token=access_token)
     
     return {
         "status": "success",
         "variants": variant_data.get("productVariants"),
         "inventory_item_id": inventory_item_id
     }
+
+
+def set_product_metafields(owner_id: str, metafields_data: List[Dict[str, Any]], shop_url: str = None, access_token: str = None) -> Dict[str, Any]:
+    """
+    Set metafields for a product or variant using metafieldsSet mutation
+    """
+    mutation = """
+    mutation metafieldsSet($metafields: [MetafieldsSetInput!]!) {
+      metafieldsSet(metafields: $metafields) {
+        metafields {
+          id
+          namespace
+          key
+          value
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+    """
+    
+    metafields_input = []
+    for mf in metafields_data:
+        raw_val = mf.get("value")
+        if raw_val is None or str(raw_val).strip().lower() == "none" or str(raw_val).strip() == "":
+            print(f" [DEBUG] Skipping blank/None metafield: {mf['key']}")
+            continue
+            
+        val = str(raw_val).strip()
+        metafields_input.append({
+            "ownerId": owner_id,
+            "namespace": mf.get("namespace", "custom"),
+            "key": mf["key"],
+            "value": val,
+            "type": mf.get("type", "single_line_text_field")
+        })
+    
+    if not metafields_input:
+        return {"status": "success", "message": "No non-blank metafields to set"}
+        
+    variables = {"metafields": metafields_input}
+    result = execute_graphql_query(mutation, variables, shop_url=shop_url, access_token=access_token)
+    return handle_graphql_response(result, "metafieldsSet")
 
 
 def activate_inventory_tracking(inventory_item_id: str, shop_url: str = None, access_token: str = None) -> Dict[str, Any]:
@@ -373,6 +451,11 @@ def create_product_graphql(
             variant_gid=variant_gid,
             price=v_data.get("price"),
             sku=v_data.get("sku"),
+            cost=v_data.get("cost"),
+            weight=v_data.get("weight"),
+            weight_unit=v_data.get("weight_unit", "KILOGRAMS"),
+            taxable=v_data.get("taxable", True),
+            requires_shipping=v_data.get("requires_shipping", True),
             inventory_management=True,
             shop_url=shop_url,
             access_token=access_token
@@ -407,6 +490,11 @@ def build_graphql_variants(variants_data: List[Dict[str, Any]]) -> List[Dict[str
         if "price" in variant: gql["price"] = str(variant["price"])
         if "sku" in variant: gql["sku"] = variant["sku"]
         if "quantity" in variant: gql["quantity"] = variant["quantity"]
+        if "cost" in variant: gql["cost"] = variant["cost"]
+        if "weight" in variant: gql["weight"] = variant["weight"]
+        if "weight_unit" in variant: gql["weight_unit"] = variant["weight_unit"]
+        if "taxable" in variant: gql["taxable"] = variant["taxable"]
+        if "requires_shipping" in variant: gql["requires_shipping"] = variant["requires_shipping"]
         
         options = []
         for i in range(1, 4):

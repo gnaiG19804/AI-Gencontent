@@ -21,7 +21,7 @@ def parse_price(text):
 
 def clean_prices(prices):
     """trim 15–85 percentile to remove outliers"""
-    if len(prices) < 5:
+    if len(prices) < 5: 
         return prices
 
     prices = sorted(prices)
@@ -200,7 +200,7 @@ def get_real_offers(api_url):
 
 # ---------- main ----------
 
-def google_shopping_prices(product_name, vintage=None):
+def google_shopping_prices(product_name, vintage=None, raw=False):
     
     # Build optimized query
     query = build_search_query(product_name, vintage)
@@ -251,6 +251,10 @@ def google_shopping_prices(product_name, vintage=None):
         link = item.get("product_link", item.get("link", "no link"))
         print(f"💰 {p} | {source} | 🔗 {link}")
 
+        # Stop at 10 if raw mode is on
+        if raw and len(prices) >= 10:
+            break
+
         # OPTIONAL deep verify
         api2 = item.get("serpapi_immersive_product_api")
         if api2:
@@ -260,6 +264,9 @@ def google_shopping_prices(product_name, vintage=None):
     # -------- after loop --------
 
     print("\n📦 RAW COUNT:", len(prices))
+
+    if raw:
+        return prices
 
     clean = clean_prices(prices)
 

@@ -21,7 +21,7 @@ def build_shopify_product_body(
     """
 
     price = None
-    price_keys = ['price', 'gia', 'gia_ban', 'cost', 'amount', 'giá']
+    price_keys = ['price', 'gia', 'gia_ban', 'cost', 'amount', 'giá', 'luc']
     for key in original_data.keys():
         if key.lower().strip() in price_keys and original_data[key] is not None:
             try:
@@ -55,8 +55,8 @@ def build_shopify_product_body(
     description = generated_content.get("description", "")
     if not description:
         # Combine short and long if standard description is missing (new model)
-        short_desc = generated_content.get("approved_short_description", "")
-        long_desc = generated_content.get("approved_long_description", "")
+        short_desc = generated_content.get("approved_short_description") or generated_content.get("short_description", "")
+        long_desc = generated_content.get("approved_long_description") or generated_content.get("long_description", "")
         if short_desc or long_desc:
             description = f"<strong>{short_desc}</strong><br><br>{long_desc}"
 
@@ -138,7 +138,7 @@ def build_shopify_product_body(
             product_body["product"]["variants"][0]["option1"] = variant_options[0] if len(variant_options) > 0 else None
             product_body["product"]["variants"][0]["option2"] = variant_options[1] if len(variant_options) > 1 else None
             product_body["product"]["variants"][0]["option3"] = variant_options[2] if len(variant_options) > 2 else None
-    
+        
     return product_body
 
 
@@ -146,27 +146,28 @@ def push_to_shopify(product_body: Dict[str, Any], shop_url: str = None, access_t
     """
     Push product lên Shopify store using GraphQL API
     """
-    from services.shopify_graphql import create_product_graphql, build_graphql_variants
+    from services.shopify_graphql import create_product_graphql, build_graphql_variants, set_product_metafields
     
     try:
-        product = product_body.get("product", {})
+        product_data = product_body.get("product", {})
+        metafields = product_body.get("metafields", [])
         
         # Extract data
-        title = product.get("title", "Untitled Product")
-        description_html = product.get("body_html", "")
-        vendor = product.get("vendor", "Your Store")
-        product_type = product.get("product_type", "")
-        tags_str = product.get("tags", "")
+        title = product_data.get("title", "Untitled Product")
+        description_html = product_data.get("body_html", "")
+        vendor = product_data.get("vendor", "Your Store")
+        product_type = product_data.get("product_type", "")
+        tags_str = product_data.get("tags", "")
         tags = [tag.strip() for tag in tags_str.split(",")] if tags_str else []
         
         # Extract category ID
         category_id = None
-        product_category = product.get("product_category", {})
+        product_category = product_data.get("product_category", {})
         if product_category:
             category_id = product_category.get("product_taxonomy_node_id")
         
         # Convert variants to GraphQL format
-        rest_variants = product.get("variants", [])
+        rest_variants = product_data.get("variants", [])
         graphql_variants = build_graphql_variants(rest_variants)
         
         # Create product via GraphQL
@@ -184,6 +185,15 @@ def push_to_shopify(product_body: Dict[str, Any], shop_url: str = None, access_t
         )
         
         if result["status"] == "success":
+            product_gid = result.get("product_gid")
+            
+            # 2. Set Metafields
+            if product_gid and metafields:
+                print(f" Setting {len(metafields)} metafields for product...")
+                mf_res = set_product_metafields(product_gid, metafields, shop_url=shop_url, access_token=access_token)
+                if mf_res["status"] == "error":
+                    print(f" [WARNING] Metafields failed: {mf_res.get('errors')}")
+            
             # Log category if set
             if result.get("category"):
                 cat = result["category"]

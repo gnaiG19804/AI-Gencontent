@@ -11,6 +11,33 @@ def analyze_csv(content: bytes) -> Dict[str, Any]:
         file_stream = io.BytesIO(content)
         df = pd.read_csv(file_stream, on_bad_lines='warn')
         
+        # Standardize column names
+        df.columns = df.columns.str.strip()  # Remove whitespace
+        
+        # Custom mapping based on User Requirement
+        # Target: Product_name, Vintage, cost_per_item (Luc), supplier
+        column_mapping = {
+            'Luc': 'cost_per_item',
+            'luc': 'cost_per_item',
+            'LUC': 'cost_per_item',
+            'Supplier': 'supplier',
+            'SUPPLIER': 'supplier',
+            'Product Name': 'Product_name',
+            'product_name': 'Product_name'
+        }
+        
+        df.rename(columns=column_mapping, inplace=True)
+        
+        # Ensure required columns exist
+        required_columns = ['Product_name', 'Vintage', 'cost_per_item', 'supplier']
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        
+        if missing_columns:
+             return {
+                "status": "error",
+                "message": f"File CSV thiếu các cột bắt buộc: {', '.join(missing_columns)}. (Yêu cầu: Product_name, Vintage, Luc, supplier)"
+            }
+        
         columns_info = []
         total_missing = 0
         

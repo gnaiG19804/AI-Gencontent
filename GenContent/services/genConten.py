@@ -60,12 +60,17 @@ async def generate_node(state: ContentState) -> ContentState:
     
     competitor_context_instruction = ""
     if state.get('competitor_context'):
+        # Extract Supplier from input_data if available
+        supplier = state['input_data'].get('Supplier') or state['input_data'].get('supplier', '')
+        supplier_hint = f"\n\nSUPPLIER: {supplier}" if supplier else ""
+        
         competitor_context_instruction = f"""
         REFERENCE DESCRIPTIONS FROM SIMILAR PRODUCTS (RAG):
-        {state['competitor_context']}
+        {state['competitor_context']}{supplier_hint}
 
         => INSTRUCTION: Use the styles, formats, or keywords from the references above as inspiration to write a SUPERIOR description. 
         => YOU MUST NOT COPY verbatim. Create unique, high-quality, and SEO-optimized content.
+        => Use the Supplier information to infer the country if not found in the context.
         """
 
     prompt = PromptTemplate(
@@ -131,7 +136,7 @@ async def review_node(state: ContentState) -> ContentState:
     
     # Review Logic
     review_prompt = f"""
-                        You are a Content Quality Assurance Auditor.
+                        You are a Content Quality Assurance Auditor for wine products.
                         
                         Review the following product content for Shopify:
                         Title: {content.get('title')}
@@ -140,11 +145,18 @@ async def review_node(state: ContentState) -> ContentState:
                         Tags: {content.get('tags')}
                         Product Type: {content.get('product_type')}
                         
+                        WINE DATA (Optional - may be null if insufficient context):
+                        Country: {content.get('country')}
+                        Flavour Rating: {content.get('flavour_rating')} (0-100)
+                        Tasting Notes: {content.get('tasting_notes')}
+                        Food Pairings: {content.get('food_pairings')}
+                        
                         CRITERIA for APPROVAL:
                         1. Language must be {Config.LANGUAGE}.
                         2. No HTML syntax errors.
-                        3. Professional tone, no spammy keywords.
+                        3. Professional wine sommelier tone, no spammy keywords.
                         4. MUST have a valid product_type selected (from the provided list).
+                        5. Wine data is OPTIONAL. If present, Flavour Rating must be 0-100. Do NOT reject just because wine data is null.
                         
                         Output JSON ONLY:
                         {{

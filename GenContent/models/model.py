@@ -89,8 +89,7 @@ class ShopifyPushItem(BaseModel):
                     'title', 'short_description', 'long_description', 
                     'approved_short_description', 'approved_long_description', 
                     'tags', 'product_type', 'status', 'country', 
-                    'dry_sweet_rating', 'light_bold_rating', 'soft_acidic_rating', 
-                    'smooth_tannic_rating', 'tasting_notes', 'food_pairings'
+                    'flavour_rating', 'tasting_notes', 'food_pairings'
                 }
                 
                 # Case-insensitive mapping for flat data
@@ -134,6 +133,12 @@ class AIContentEngineOutput(BaseModel):
     approved_long_description: str = Field(description="Verified long description")
     tags: str = Field(description="Comma-separated tags")
     product_type: str = Field(description="Selected Shopify Product Category")
+    
+    # Wine Specific Metafields & Ratings
+    country: Optional[str] = Field(default=None, description="Country of origin of the wine")
+    flavour_rating: Optional[int] = Field(default=None, ge=0, le=100, description="Overall flavour rating (0-100)")
+    tasting_notes: Optional[str] = Field(default=None, description="Concise tasting notes")
+    food_pairings: str = Field(description="Recommended food pairings for this wine")
     
     metadata: GenerationMetadata = Field(description="Generation metadata")
 

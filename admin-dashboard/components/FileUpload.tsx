@@ -6,11 +6,11 @@ import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
 interface FileUploadProps {
-  webhookUrl?: string;
+  onUploadSuccess: (data: any) => void;
   className?: string;
 }
 
-export default function FileUpload({ webhookUrl, className }: FileUploadProps) {
+export default function FileUpload({ onUploadSuccess, className }: FileUploadProps) {
   const [file, setFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -67,8 +67,8 @@ export default function FileUpload({ webhookUrl, className }: FileUploadProps) {
   const uploadFile = async () => {
     if (!file) return;
 
-    // Use local API proxy instead of direct n8n URL to avoid CORS
-    const targetUrl = '/api/upload';
+    // Direct to FastAPI Backend
+    const targetUrl = 'http://localhost:8000/upload';
 
     setIsUploading(true);
     setStatus('idle');
@@ -76,9 +76,6 @@ export default function FileUpload({ webhookUrl, className }: FileUploadProps) {
 
     const formData = new FormData();
     formData.append('file', file);
-    // Add additional metadata if needed
-    formData.append('filename', file.name);
-    formData.append('timestamp', new Date().toISOString());
 
     try {
       const response = await fetch(targetUrl, {
@@ -87,12 +84,17 @@ export default function FileUpload({ webhookUrl, className }: FileUploadProps) {
       });
 
       if (response.ok) {
+        const data = await response.json();
         setStatus('success');
-        setMessage('Tải lên thành công! File đã được gửi đến n8n.');
-        setFile(null); // Clear file after successful upload optional
+        setMessage(`Upload thành công! Đã đọc ${data.total_rows} dòng.`);
+
+        // Pass data up to parent, including the original file
+        onUploadSuccess({ ...data, file });
+
+        // setFile(null); // Keep file for visual confirmation
       } else {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Upload failed with status: ${response.status}`);
+        throw new Error(errorData.detail || `Upload failed with status: ${response.status}`);
       }
     } catch (error: any) {
       console.error('Upload error:', error);
@@ -104,7 +106,7 @@ export default function FileUpload({ webhookUrl, className }: FileUploadProps) {
   };
 
   return (
-    <div className={twMerge("w-full max-w-md mx-auto p-6 bg-white rounded-xl shadow-md space-y-4", className)}>
+    <div className={twMerge("w-full max-w-xl mx-auto p-6 bg-white rounded-xl shadow-sm border border-gray-100 space-y-4", className)}>
       <h2 className="text-xl font-bold text-gray-800 text-center">Tải lên File dữ liệu</h2>
 
       <div
@@ -123,6 +125,7 @@ export default function FileUpload({ webhookUrl, className }: FileUploadProps) {
         <input
           type="file"
           className="hidden"
+          accept=".csv"
           onChange={handleFileChange}
           ref={fileInputRef}
         />
@@ -130,8 +133,8 @@ export default function FileUpload({ webhookUrl, className }: FileUploadProps) {
         {!file ? (
           <>
             <Upload className={clsx("w-12 h-12 mb-3", isDragging ? "text-blue-500" : "text-gray-400")} />
-            <p className="text-sm text-gray-600 font-medium">Kéo thả file vào đây hoặc click để chọn</p>
-            <p className="text-xs text-gray-400 mt-1">Hỗ trợ mọi định dạng file</p>
+            <p className="text-sm text-gray-600 font-medium">Kéo thả file CSV vào đây</p>
+            <p className="text-xs text-gray-400 mt-1">Chỉ hỗ trợ file .csv</p>
           </>
         ) : (
           <div className="flex items-center w-full bg-white p-3 rounded border border-gray-200 shadow-sm relative group">
@@ -184,10 +187,10 @@ export default function FileUpload({ webhookUrl, className }: FileUploadProps) {
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
-            Đang tải lên...
+            Đang phân tích...
           </>
         ) : (
-          "Gửi File"
+          "Upload"
         )}
       </button>
     </div>

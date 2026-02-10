@@ -37,6 +37,10 @@ async def push_products_to_shopify(req: BatchPushRequest = None):
 
     MAX_CONCURRENT_REQUESTS = Config.MAX_CONCURRENT_REQUESTS
     semaphore = asyncio.Semaphore(MAX_CONCURRENT_REQUESTS)
+    
+    # Check Metafields Definitions before pushing
+    from services.metafield_setup import ensure_metafield_definitions
+    await ensure_metafield_definitions()
 
     # Pre-fetch categories ONCE
     try:
@@ -75,6 +79,12 @@ async def push_products_to_shopify(req: BatchPushRequest = None):
                     
                     start_status = "success" if push_result["status"] == "success" else "error"
                     
+                    
+                    if start_status == "success":
+                         await send_log(f"✅ Pushed: {title}", "success")
+                    else:
+                         await send_log(f"❌ Failed: {title} - {push_result.get('message')}", "error")
+
                     # Extract error message if any
                     err_msg = push_result.get("message")
                     if not err_msg and push_result.get("errors"):
@@ -102,6 +112,9 @@ async def push_products_to_shopify(req: BatchPushRequest = None):
         results = await asyncio.gather(*tasks)
         
         success_count = sum(1 for r in results if r["status"] == "success")
+        failed_count = len(req.items) - success_count
+        await send_log(f"✅ Batch Push Completed! Success: {success_count}, Failed: {failed_count}", "done")
+        
         return {
             "status": "completed",
             "total": len(req.items),

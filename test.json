@@ -1,0 +1,287 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "triggerAtHour": 6
+            }
+          ]
+        }
+      },
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:8000/price-sync/products",
+        "options": {}
+      },
+      "name": "Get Products",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        450,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "products",
+        "options": {}
+      },
+      "name": "Item Lists",
+      "type": "n8n-nodes-base.itemLists",
+      "typeVersion": 1,
+      "position": [
+        650,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "name": "SplitInBatches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 1,
+      "position": [
+        850,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/price-sync/analyze-competitor",
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "product_title",
+              "value": "={{$json[\"title\"]}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Analyze Competitor",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        1050,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/price-sync/calculate-target",
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "competitor_price",
+              "value": "={{$json[\"lowest_price\"]}}"
+            },
+            {
+              "name": "cost",
+              "value": "={{$node[\"SplitInBatches\"].json[\"variants\"][0][\"cost\"]}}"
+            },
+            {
+              "name": "current_price",
+              "value": "={{$node[\"SplitInBatches\"].json[\"variants\"][0][\"price\"]}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Calculate Target",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        1250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json[\"action\"]}}",
+              "value2": "UPDATE"
+            }
+          ]
+        }
+      },
+      "name": "IF Update Needed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1450,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/price-sync/execute-update",
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "product_id",
+              "value": "={{$node[\"SplitInBatches\"].json[\"id\"]}}"
+            },
+            {
+              "name": "variant_id",
+              "value": "={{$node[\"SplitInBatches\"].json[\"variants\"][0][\"id\"]}}"
+            },
+            {
+              "name": "new_price",
+              "value": "={{$json[\"new_price\"]}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Execute Update",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        1650,
+        200
+      ]
+    },
+    {
+      "parameters": {},
+      "name": "No Update Needed",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1650,
+        400
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Products",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Products": {
+      "main": [
+        [
+          {
+            "node": "Item Lists",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Item Lists": {
+      "main": [
+        [
+          {
+            "node": "SplitInBatches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SplitInBatches": {
+      "main": [
+        [
+          {
+            "node": "Analyze Competitor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Competitor": {
+      "main": [
+        [
+          {
+            "node": "Calculate Target",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Target": {
+      "main": [
+        [
+          {
+            "node": "IF Update Needed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Update Needed": {
+      "main": [
+        [
+          {
+            "node": "Execute Update",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Update Needed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Update": {
+      "main": [
+        [
+          {
+            "node": "SplitInBatches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No Update Needed": {
+      "main": [
+        [
+          {
+            "node": "SplitInBatches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

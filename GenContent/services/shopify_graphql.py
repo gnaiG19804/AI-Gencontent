@@ -184,7 +184,12 @@ def update_product_variant_bulk(
           }
         }
         """
-        execute_graphql_query(cost_mutation, {"id": inventory_item_id, "input": {"unitCost": {"amount": str(cost)}}}, shop_url=shop_url, access_token=access_token)
+        cost_res = execute_graphql_query(cost_mutation, {"id": inventory_item_id, "input": {"cost": str(cost)}}, shop_url=shop_url, access_token=access_token)
+        processed_cost = handle_graphql_response(cost_res, "inventoryItemUpdate")
+        if processed_cost["status"] == "error":
+            print(f"⚠️ [WARNING] Cost update failed: {processed_cost.get('errors')}")
+        else:
+            print(f"✅ Cost successfully set to: {cost}")
     
     return {
         "status": "success",

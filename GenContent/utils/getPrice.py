@@ -15,8 +15,33 @@ SERP_KEY = Config.SERP_API_KEY
 def parse_price(text):
     if not text:
         return None
-    m = re.search(r"\d+\.?\d*", text.replace(",", ""))
-    return float(m.group()) if m else None
+        
+    # Clean text
+    clean_text = text.replace(",", "").lower().strip()
+    
+    # Extract number
+    m = re.search(r"\d+\.?\d*", clean_text)
+    if not m:
+        return None
+        
+    amount = float(m.group())
+    
+    # Detect currency
+    is_vnd = any(c in clean_text for c in ["đ", "vnd", "d"]) or amount > 50000 
+    
+    # Normalize to USD
+    try:
+        if is_vnd:
+            # Convert VND to USD (e.g. 2,540,000 -> 100)
+            amount = amount / Config.EXCHANGE_RATE_VND_TO_USD
+        else:
+            # Assume USD if not VND (or small number)
+            pass
+            
+    except Exception as e:
+        print(f"Currency conversion error: {e}")
+        
+    return round(float(amount), 2)
 
 
 def clean_prices(prices):
@@ -210,7 +235,16 @@ def google_shopping_prices(product_name, vintage=None, raw=False):
         "engine": "google_shopping",
         "q": query,
         "api_key": SERP_KEY,
-        "num": 20
+        "num": 40,
+        "tbs": "mr:1,merchagg:g784994" # Filter by Merchant Rating + Aggregator (optional try)
+    }
+
+    # Remove tbs if too restrictive, let's just Stick to num=40 for now to get MAX results
+    params = {
+        "engine": "google_shopping",
+        "q": query,
+        "api_key": SERP_KEY,
+        "num": 40
     }
 
     r = requests.get(
@@ -264,6 +298,58 @@ def google_shopping_prices(product_name, vintage=None, raw=False):
     # -------- after loop --------
 
     print("\n📦 RAW COUNT:", len(prices))
+
+    # --- FALLBACK: Organic Search if few results ---
+    if len(prices) < 3:
+        print("\n📉 Few shopping results found. Trying Google Organic Search...")
+        try:
+            organic_query = f"giá {product_name} {vintage if vintage else ''}".strip()
+            org_params = {
+                "engine": "google",
+                "q": organic_query,
+                "api_key": SERP_KEY,
+                "num": 10,
+                "gl": "vn", # Localization: Vietnam
+                "hl": "vi"
+            }
+            r_org = requests.get("https://serpapi.com/search", params=org_params, timeout=20)
+            if r_org.status_code == 200:
+                org_data = r_org.json()
+                org_results = org_data.get("organic_results", [])
+                
+                print(f"🔎 ORGANIC QUERY: {organic_query} ({len(org_results)} results)")
+                
+                for item in org_results:
+                    # Extract price from rich snippets
+                    price_text = None
+                    
+                    # 1. Check rich_snippet dictionary
+                    if "rich_snippet" in item:
+                        rs = item["rich_snippet"]
+                        # Deep checking for price extension
+                        if "top" in rs and "detected_extensions" in rs["top"]:
+                            price_text = rs["top"]["detected_extensions"].get("price")
+                            
+                    # 2. Check title/snippet with regex if rich snippet failed
+                    if not price_text:
+                        combined_text = (item.get("title", "") + " " + item.get("snippet", "")).lower()
+                        # Regex for finding price like "1.200.000 đ" or "500k"
+                        # Simple regex for now to avoid false positives
+                        m = re.search(r'(\d{1,3}(?:[.,]\d{3})*(?:\.\d+)?)\s*(?:đ|vnd|usd|\$)', combined_text)
+                        if m:
+                            price_text = m.group(1)
+
+                    if price_text:
+                        p = parse_price(price_text)
+                        if p and p > 1000: # Filter out small numbers (likely not price)
+                             prices.append(p)
+                             print(f"💰 ORGANIC: {p} | 🔗 {item.get('link')}")
+
+        except Exception as e:
+            print(f"❌ Organic fallback failed: {e}")
+    # ---------------------------------------------
+
+    print("\n📦 TOTAL RAW COUNT (with fallback):", len(prices))
 
     if raw:
         return prices

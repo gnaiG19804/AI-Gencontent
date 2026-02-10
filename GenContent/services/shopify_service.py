@@ -20,12 +20,24 @@ def build_shopify_product_body(
     Build Shopify product body chuẩn từ generated content và original CSV data
     """
 
+    # Extract Selling Price
     price = None
-    price_keys = ['price', 'gia', 'gia_ban', 'cost', 'amount', 'giá', 'luc']
+    selling_price_keys = ['price', 'gia', 'gia_ban', 'giá', 'giá bán']
     for key in original_data.keys():
-        if key.lower().strip() in price_keys and original_data[key] is not None:
+        if key.lower().strip() in selling_price_keys and original_data[key] is not None:
             try:
                 price = float(str(original_data[key]).replace(",", ""))
+            except:
+                pass
+            break
+            
+    # Extract Cost (LUC)
+    cost = None
+    cost_keys = ['cost', 'luc', 'giá vốn', 'gia von', 'gia_von']
+    for key in original_data.keys():
+        if key.lower().strip() in cost_keys and original_data[key] is not None:
+            try:
+                cost = float(str(original_data[key]).replace(",", ""))
             except:
                 pass
             break
@@ -92,6 +104,10 @@ def build_shopify_product_body(
         if recommended_price is not None:
             print(f"💰 Using calculated price: ${recommended_price:.2f}")
     
+    if cost is not None:
+        variant["cost"] = cost
+        print(f"💰 Setting unit cost (LUC): {cost}")
+
     if sku:
         variant["sku"] = sku
     
@@ -116,12 +132,63 @@ def build_shopify_product_body(
     # Add variant
     product_body["product"]["variants"] = [variant]
     
+    # === Wine Specific Metafields (Conditional) ===
+    metafields = []
+    
+    # Extract Supplier
+    supplier = original_data.get("Supplier") or original_data.get("supplier", "")
+    if supplier:
+        metafields.append({
+            "key": "internal_supplier",
+            "value": supplier,
+            "type": "single_line_text_field"
+        })
+    
+    # Add wine metafields only if they exist
+    if generated_content.get("country"):
+        metafields.append({
+            "key": "country",
+            "value": generated_content["country"],
+            "type": "single_line_text_field"
+        })
+    
+    if generated_content.get("flavour_rating") is not None:
+        metafields.append({
+            "namespace": "custom",
+            "key": "flavour_rating",
+            "value": generated_content["flavour_rating"],
+            "type": "number_integer"
+        })
+    
+    if generated_content.get("tasting_notes"):
+        metafields.append({
+            "key": "tasting_notes",
+            "value": generated_content["tasting_notes"],
+            "type": "multi_line_text_field"
+        })
+    
+    if generated_content.get("food_pairings"):
+        metafields.append({
+            "key": "food_pairings",
+            "value": generated_content["food_pairings"],
+            "type": "multi_line_text_field"
+        })
+    
+    # Only add metafields to body if we have any
+    if metafields:
+        product_body["metafields"] = metafields
+        print(f" 🍷 Built {len(metafields)} wine metafields")
+    
     # Build options từ các field còn lại (Color, Size...)
     options = []
     variant_options = []
     
-    # Exclude price, sku, quantity, and name fields from options
-    excluded_keys = price_keys + sku_keys + quantity_keys + ['name', 'title', 'tên', 'ten']
+    # Exclude price, sku, quantity, and common descriptive fields from options
+    excluded_keys = selling_price_keys + sku_keys + quantity_keys + [
+        'name', 'title', 'tên', 'ten', 
+        'product_name', 'vintage', 'cost_per_item', 'luc', 'cost',
+        'supplier', 'row_index'
+    ]
     
     for key, value in original_data.items():
         if value is not None and key.lower().strip() not in excluded_keys:

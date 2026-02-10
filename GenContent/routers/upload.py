@@ -27,14 +27,15 @@ async def upload_and_analyze(file: UploadFile = File(...)):
     
     uploaded_data["content"] = content
     uploaded_data["products"] = result["products"]
-    uploaded_data["columns"] = result["columns"]
+    uploaded_data["columns"] = result["column_names"]
     
     return {
         "status": "success",
         "file_name": file.filename,
         "total_rows": result["total_rows"],
         "total_columns": result["total_columns"],
-        "columns": result["columns"], 
+        "columns": result["column_names"],  # Return simple strings for frontend
+        "columns_metadata": result["columns"], # Keep metadata if needed
         "products": result["products"],
         "data_preview": result["products"][:5]
     }

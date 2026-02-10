@@ -220,6 +220,16 @@ async def enrich_batch_products(req: BatchEnrichRequest):
                             strategy = "competitive_step_up"
                             break
                             
+                # Merge metadata back into original_data to preserve extra fields like Supplier
+                original_data_full = {
+                    "product_name": product_name,
+                    "vintage": vintage,
+                    "cost_per_item": cost_per_item,
+                }
+                # Add all extra fields from metadata
+                if item.metadata:
+                    original_data_full.update(item.metadata)
+                    
                 return {
                     "product_name": product_name,
                     "vintage": vintage,
@@ -227,8 +237,9 @@ async def enrich_batch_products(req: BatchEnrichRequest):
                     "competitor_context": context,
                     "recommended_price": final_price,
                     "price_strategy": strategy,
+                    "cost_per_item": cost_per_item, # Add this to make it available at top level
                     "metadata": item.metadata,
-                    "original_data": item.model_dump() # Carry forward everything
+                    "original_data": original_data_full 
                 }
             except Exception as e:
                 return {
@@ -271,11 +282,23 @@ async def generate_batch_content(req: BatchGenerateRequest):
                     competitor_context=item.competitor_context
                 )
                 
+                # Extract cost_per_item from product_data (check multiple possible field names)
+                cost_per_item = None
+                cost_keys = ['cost_per_item', 'Cost', 'cost', 'LUC', 'luc']
+                for key in cost_keys:
+                    if key in item.product_data and item.product_data[key] is not None:
+                        try:
+                            cost_per_item = float(str(item.product_data[key]).replace(",", ""))
+                            break
+                        except:
+                            pass
+                
                 return {
                     "status": "success",
                     "product_name": product_name,
                     "generated_content": generated,
                     "product_data": item.product_data,
+                    "cost_per_item": cost_per_item,  # Explicitly return cost
                     "metadata": item.metadata
                 }
             except Exception as e:

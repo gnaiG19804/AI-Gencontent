@@ -66,6 +66,13 @@ async def ensure_metafield_definitions():
             "key": "internal_supplier",
             "type": "single_line_text_field",
             "ownerType": "PRODUCT"
+        },
+        {
+            "name": "Internal Supplier Code",
+            "namespace": "internal",
+            "key": "supplier_code",
+            "type": "single_line_text_field",
+            "ownerType": "PRODUCT"
         }
     ]
 

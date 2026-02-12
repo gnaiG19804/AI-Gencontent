@@ -23,7 +23,18 @@ def analyze_csv(content: bytes) -> Dict[str, Any]:
             'Supplier': 'supplier',
             'SUPPLIER': 'supplier',
             'Product Name': 'Product_name',
-            'product_name': 'Product_name'
+            'product_name': 'Product_name',
+            'Price': 'unit_price',
+            'price': 'unit_price',
+            'giá': 'unit_price',
+            'Box Size': 'units_per_box',
+            'box_size': 'units_per_box',
+            'quy_cach': 'units_per_box',
+            'Supplier Code': 'supplier_code',
+            'supplier_code': 'supplier_code',
+            'Ma NCC': 'supplier_code',
+            'Code House': 'supplier_code',
+            'Mã NCC': 'supplier_code'
         }
         
         df.rename(columns=column_mapping, inplace=True)

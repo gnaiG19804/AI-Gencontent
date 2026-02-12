@@ -200,25 +200,42 @@ async def enrich_batch_products(req: BatchEnrichRequest):
 
                 # Define tasks
                 rag_task = get_competitor_context(product_name, vintage)
-                price_task = asyncio.to_thread(google_shopping_prices, product_name, vintage, True)
-
-                # Run tasks concurrently
-                context, prices = await asyncio.gather(rag_task, price_task)
-
-                # Post-process Price (logic from pricing.py)
-                floor_margin = Config.FLOOR_MARGIN
-                floor_price = round(cost_per_item * floor_margin, 2)
-                final_price = floor_price
-                strategy = "floor"
                 
-                if prices:
-                    valid = sorted([p for p in prices if p > cost_per_item])
-                    for p in valid:
-                        suggested = round(p * 0.99, 2)
-                        if suggested >= floor_price:
-                            final_price = suggested
-                            strategy = "competitive_step_up"
-                            break
+                # Check for explicit unit_price in metadata
+                input_price = None
+                if item.metadata:
+                    price_keys = ['unit_price', 'price', 'Price', 'Unit Price']
+                    for k in price_keys:
+                        if k in item.metadata and item.metadata[k]:
+                             try:
+                                 input_price = float(str(item.metadata[k]).replace(",", ""))
+                                 break
+                             except:
+                                 pass
+
+                if input_price:
+                    # Logic khi có giá (Skip Google)
+                    await send_log(f"⚡ [Enrich] Đã có giá nhập: ${input_price}. Bỏ qua dò giá.", "info")
+                    context = await rag_task
+                    prices = [] # No competitor prices
+                    
+                    final_price = input_price
+                    strategy = "manual_input"
+                else:
+                    # FORCE DISABLE: User requested to stop competitor pricing entirely
+                    await send_log(f"⚠️ Không tìm thấy giá trong CSV. Bỏ qua dò giá Google (Logic cũ đã tắt).", "warning")
+                    context = await rag_task
+                    prices = []
+                    
+                    # Still calculate floor price if cost exists
+                    floor_margin = Config.FLOOR_MARGIN
+                    if cost_per_item:
+                         floor_price = round(cost_per_item * floor_margin, 2)
+                         final_price = floor_price
+                         strategy = "floor_only"
+                    else:
+                         final_price = None
+                         strategy = "missing_cost"
                             
                 # Merge metadata back into original_data to preserve extra fields like Supplier
                 original_data_full = {

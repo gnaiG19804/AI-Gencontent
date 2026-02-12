@@ -58,8 +58,18 @@ class EnrichRequest(BaseModel):
                 data['product_name'] = data.pop('Product_name')
             if 'Vintage' in data and 'vintage' not in data:
                 data['vintage'] = data.pop('Vintage')
+            
+            # Capture all extra fields into metadata
+            extra_fields = {k: v for k, v in data.items() if k not in ['product_name', 'vintage', 'cost_per_item', 'Product_name', 'Vintage', 'metadata']}
+            
             if 'metadata' not in data:
-                 data['metadata'] = {k: v for k, v in data.items() if k not in ['product_name', 'vintage', 'cost_per_item', 'Product_name', 'Vintage']}
+                 data['metadata'] = extra_fields
+            elif isinstance(data['metadata'], dict):
+                 # Merge extra fields into existing metadata
+                 # Note: explicit metadata keys take precedence if collision (though unlikely here)
+                 # better to have extra headers overwrite or merge? 
+                 # Let's simple update: existing metadata + extra fields
+                 data['metadata'].update(extra_fields)
         return data
 
 class BatchEnrichRequest(BaseModel):
@@ -104,6 +114,27 @@ class ShopifyPushItem(BaseModel):
                     else:
                         prod_data[k] = v
                 
+                # Explicitly ensure unit_price and units_per_box are in prod_data if they exist in data
+                data_keys_map = {k.lower(): k for k in data.keys()}
+                
+                # Check for unit_price variations
+                for k in ['unit_price', 'price', 'Unit Price', 'Price']:
+                    if k.lower() in data_keys_map:
+                         original_key = data_keys_map[k.lower()]
+                         prod_data['unit_price'] = data[original_key] # Normalize key
+                
+                # Check for units_per_box variations
+                for k in ['units_per_box', 'box_size', 'Box Size', 'quy_cach']:
+                    if k.lower() in data_keys_map:
+                         original_key = data_keys_map[k.lower()]
+                         prod_data['units_per_box'] = data[original_key] # Normalize key
+
+                # Check for supplier_code variations
+                for k in ['supplier_code', 'Supplier Code', 'Ma NCC', 'Code House', 'Mã NCC']:
+                    if k.lower() in data_keys_map:
+                         original_key = data_keys_map[k.lower()]
+                         prod_data['supplier_code'] = data[original_key] # Normalize key
+
                 return {
                     "product_data": prod_data,
                     "generated_content": gen_content,

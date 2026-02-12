@@ -23,17 +23,26 @@ def build_shopify_product_body(
     # Extract Selling Price
     price = None
     selling_price_keys = ['price', 'gia', 'gia_ban', 'giá', 'giá bán']
-    for key in original_data.keys():
-        if key.lower().strip() in selling_price_keys and original_data[key] is not None:
-            try:
-                price = float(str(original_data[key]).replace(",", ""))
-            except:
-                pass
-            break
+    
+    # Prioritize 'unit_price' as it is the standard for bulk pricing
+    if 'unit_price' in original_data and original_data['unit_price'] is not None:
+         try:
+             price = float(str(original_data['unit_price']).replace(",", ""))
+         except:
+             pass
+
+    if price is None:
+        for key in original_data.keys():
+            if key.lower().strip() in selling_price_keys and original_data[key] is not None:
+                try:
+                    price = float(str(original_data[key]).replace(",", ""))
+                except:
+                    pass
+                break
             
     # Extract Cost (LUC)
     cost = None
-    cost_keys = ['cost', 'luc', 'giá vốn', 'gia von', 'gia_von']
+    cost_keys = ['cost', 'luc', 'giá vốn', 'gia von', 'gia_von', 'cost_per_item']
     for key in original_data.keys():
         if key.lower().strip() in cost_keys and original_data[key] is not None:
             try:
@@ -51,6 +60,17 @@ def build_shopify_product_body(
                 sku = str(original_data[key])
                 break
     
+    # Extract units_per_box
+    units_per_box = 1
+    upb_keys = ['units_per_box', 'box_size', 'qty_per_box']
+    for key in original_data.keys():
+        if key.lower().strip() in upb_keys and original_data[key] is not None:
+            try:
+                units_per_box = int(float(str(original_data[key]).replace(",", "")))
+            except:
+                pass
+            break
+
     # Find category ID based on product_type
     product_category_id = None
     product_type = generated_content.get("product_type", "")
@@ -97,16 +117,30 @@ def build_shopify_product_body(
     }
     
     # Use recommended_price if provided, otherwise use CSV price
-    final_price = recommended_price if recommended_price is not None else price
+    # LOGIC UPDATE: Price on Shopify = Box Price (unit_price * units_per_box)
     
-    if final_price is not None:
-        variant["price"] = str(final_price)
+    # Base unit price (per bottle)
+    base_unit_price = recommended_price if recommended_price is not None else price
+    
+    final_shopify_price = None
+    
+    if base_unit_price is not None:
+        # Calculate Box Price
+        box_price = base_unit_price * units_per_box
+        final_shopify_price = box_price
+        
+        variant["price"] = str(final_shopify_price)
+        
         if recommended_price is not None:
-            print(f"💰 Using calculated price: ${recommended_price:.2f}")
+            print(f"💰 Using calculated unit price: ${recommended_price:.2f} x {units_per_box} = ${box_price:.2f}/box")
+        else:
+            print(f"💰 Using CSV unit price: ${base_unit_price:.2f} x {units_per_box} = ${box_price:.2f}/box")
     
     if cost is not None:
-        variant["cost"] = cost
-        print(f"💰 Setting unit cost (LUC): {cost}")
+        # Cost per box
+        box_cost = cost * units_per_box
+        variant["cost"] = box_cost
+        print(f"💰 Setting box cost (LUC): ${cost} x {units_per_box} = ${box_cost}")
 
     if sku:
         variant["sku"] = sku
@@ -132,10 +166,10 @@ def build_shopify_product_body(
     # Add variant
     product_body["product"]["variants"] = [variant]
     
-    # === Wine Specific Metafields (Conditional) ===
+    # === Metafields ===
     metafields = []
-    
-    # Extract Supplier
+
+    # 1. Internal Supplier Name
     supplier = original_data.get("Supplier") or original_data.get("supplier", "")
     if supplier:
         metafields.append({
@@ -143,6 +177,46 @@ def build_shopify_product_body(
             "value": supplier,
             "type": "single_line_text_field"
         })
+        
+    # 1.5 Internal Supplier Code
+    # Mapping keys: supplier_code, Supplier Code, Ma NCC, Code House, Mã NCC
+    supplier_code = None
+    sc_keys = ['supplier_code', 'Supplier Code', 'Ma NCC', 'Code House', 'Mã NCC']
+    for k in sc_keys:
+        if k in original_data and original_data[k]:
+             supplier_code = str(original_data[k])
+             break
+    # Also check if it was normalized to 'supplier_code' by analyzer/model
+    if not supplier_code and 'supplier_code' in original_data:
+        supplier_code = str(original_data['supplier_code'])
+
+    if supplier_code:
+        metafields.append({
+            "namespace": "internal",
+            "key": "supplier_code",
+            "value": supplier_code,
+            "type": "single_line_text_field"
+        })
+        print(f" 🏭 Setting internal.supplier_code: {supplier_code}")
+
+    # 2. Units Per Box & Unit Price
+    if units_per_box:
+        metafields.append({
+            "namespace": "custom",
+            "key": "units_per_box",
+            "value": units_per_box,
+            "type": "number_integer"
+        })
+        print(f" 📦 Setting units_per_box: {units_per_box}")
+        
+    if base_unit_price is not None:
+        metafields.append({
+            "namespace": "custom",
+            "key": "unit_price",
+            "value": base_unit_price,
+            "type": "number_decimal"
+        })
+        print(f" 🏷️ Setting unit_price metafield: {base_unit_price}")
     
     # Add wine metafields only if they exist
     if generated_content.get("country"):

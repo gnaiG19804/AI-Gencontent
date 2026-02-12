@@ -159,31 +159,32 @@ async def push_products_to_shopify(req: BatchPushRequest = None):
                     vintage = product.get("Vintage", "")
                     cost_per_item = float(product["cost_per_item"])
                     
-                    prices = await asyncio.to_thread(
-                        google_shopping_prices,
-                        product_name,
-                        vintage
-                    )
+                    # Logic mới: Nếu có 'unit_price', dùng luôn, không đi dò giá nữa
+                    # Check keys: 'unit_price', 'price'
+                    input_price = None
+                    price_keys = ['unit_price', 'price', 'Price', 'Unit Price']
+                    for k in price_keys:
+                        if k in product and product[k]:
+                             try:
+                                 input_price = float(str(product[k]).replace(",", ""))
+                                 break
+                             except:
+                                 pass
                     
-                    if prices and len(prices) > 0:
-                        mode_price = find_most_common_price(prices)
-                        pricing = calculate_price(mode_price, cost_per_item)
-                        recommended_price = pricing["recommended_price"]
-                        
+                    if input_price:
+                        await send_log(f"⚡ [Skip-Scan] Đã có giá nhập: ${input_price}. Bỏ qua dò giá Google.", "info")
+                        recommended_price = input_price
                         pricing_info = {
-                            "competitor_mode": mode_price,
-                            "price_count": len(prices),
-                            "recommended_price": recommended_price,
-                            "strategy": pricing["strategy"],
-                            "margin_percent": pricing["margin_percent"]
+                            "competitor_mode": 0,
+                            "price_count": 0,
+                            "recommended_price": input_price,
+                            "strategy": "manual_input",
+                            "margin_percent": 0
                         }
-                        
-                        await send_log(
-                            f"💰 Giá đề xuất [{idx+1}]: ${recommended_price:.2f} ({pricing['strategy']})",
-                            "success"
-                        )
                     else:
-                        await send_log(f"⚠️ Không tìm thấy giá đối thủ cho [{idx+1}]", "warning")
+                        # FORCE DISABLE: User requested to stop competitor pricing entirely
+                        await send_log(f"⚠️ Không tìm thấy giá trong CSV. Bỏ qua dò giá Google (Logic cũ đã tắt).", "warning")
+                        recommended_price = None
                         
                 except Exception as pricing_error:
                     await send_log(f"⚠️ Lỗi tính giá [{idx+1}]: {str(pricing_error)}", "warning")
